@@ -1,0 +1,22 @@
+# Python-generated files
+__pycache__/
+*.py[cod]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environment
+.venv/
+
+# Local environment / secrets
+.env
+
+# Generated local database
+data/*.db
+
+# macOS
+.DS_Store
+
+# VS Code local settings
+.vscode/
