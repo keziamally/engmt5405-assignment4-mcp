@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "Kezia Sales Analytics": {
+      "command": "/opt/homebrew/bin/uv",
+      "args": [
+        "run",
+        "--frozen",
+        "--with",
+        "mcp[cli]==2.2.0",
+        "mcp",
+        "run",
+        "/Users/keziamally/assignment4-mcp/server.py"
+      ],
+      "env": {
+        "DATABASE_PATH": "data/sales.db",
+        "RATE_LIMIT_CALLS": "5",
+        "RATE_LIMIT_WINDOW_SECONDS": "60"
+      }
+    }
+  }
+}
