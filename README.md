@@ -4,47 +4,23 @@
 
 This project implements a local **Model Context Protocol (MCP) server** in Python for querying and analyzing a fictional sales dataset stored in SQLite.
 
-The project was created for **ENGMT 5405 Assignment 4** to demonstrate how an AI assistant such as Claude Desktop can interact with an external data source through a controlled set of tools rather than receiving unrestricted access to the underlying database.
+The project was created for **ENGMT 5405 Assignment 4** to demonstrate how an AI assistant such as Claude Desktop can interact with an external data source through a controlled set of MCP tools and prompts.
 
-In this project, Claude Desktop does **not** connect directly to the SQLite database. Instead, Claude communicates with a local MCP server that exposes specific capabilities. The MCP server validates each request, applies security controls, queries the database when appropriate, and returns structured results to Claude.
-
-At a high level, the system works as follows:
-
-```text
-User
-  ↓
-Claude Desktop
-  ↓
-Model Context Protocol (MCP)
-  ↓
-Python MCP Server
-  ↓
-Input Validation + Rate Limiting
-  ↓
-Database Functions
-  ↓
-SQLite Sales Database
-  ↓
-Structured Results
-  ↓
-Claude Desktop
-  ↓
-User
-```
+Claude Desktop does not receive direct or unrestricted access to the SQLite database. Instead, Claude communicates with the local Python MCP server, which validates requests, applies security controls, executes approved database operations, and returns structured results.
 
 The project demonstrates:
 
-- Model Context Protocol architecture
-- MCP tool development
-- MCP prompt development
+- Model Context Protocol (MCP) server development
+- MCP tools and prompts
 - Claude Desktop integration
 - SQLite database access
-- Input validation and sanitization
+- Input sanitization
 - Parameterized SQL queries
 - Allowlist-based query controls
 - Rate limiting
-- Automated security testing
-- Virtual environment and dependency management
+- Security exploit testing
+- Virtual environment management with uv
+- Environment-based configuration
 - Git/GitHub source control
 
 ---
@@ -53,9 +29,9 @@ The project demonstrates:
 
 **Data Analysis**
 
-The MCP server is designed to perform simple sales-data analysis.
+The MCP server is designed to support simple sales-data analysis.
 
-The fictional dataset contains the following fields:
+The fictional dataset contains:
 
 - Order date
 - Product
@@ -64,54 +40,57 @@ The fictional dataset contains the following fields:
 - Units sold
 - Revenue
 
-The data was created specifically for this assignment. It does **not** come from an external company, website, API, or production system.
+The dataset was created specifically for this assignment and does not come from an external company, API, website, or production database.
 
-A Python script called `seed_database.py` creates the dataset and stores it in a local SQLite database:
+The data is generated locally using:
+
+```text
+seed_database.py
+```
+
+and stored in:
 
 ```text
 data/sales.db
 ```
 
-The generated `.db` file is intentionally excluded from GitHub because the database can be recreated at any time using the seed script.
+The generated SQLite database is intentionally excluded from GitHub because it can be recreated at any time using the seed script.
 
 ---
 
-## What the MCP Server Does
+## MCP Implementation
 
-The MCP server acts as a controlled bridge between Claude Desktop and the sales database.
-
-Claude can discover and use the functionality exposed by the server, but it cannot run arbitrary SQL or directly access the database.
-
-The server exposes:
-
-- Two MCP tools
-- One MCP prompt
-
-The selected assignment structure is therefore:
+This project implements the assignment option:
 
 ```text
-2 Tools + 1 Prompt
+Two MCP Tools + One MCP Prompt
 ```
+
+The MCP server is defined in:
+
+```text
+server.py
+```
+
+The server exposes the following functionality to Claude Desktop.
 
 ---
 
-## MCP Components
+## Tool 1: `filter_sales`
 
-### Tool 1: `filter_sales`
+The `filter_sales` tool returns individual sales records based on optional filters.
 
-The `filter_sales` tool returns individual sales records using optional filters.
-
-Supported inputs are:
+Supported inputs:
 
 - `region`
 - `category`
 - `limit`
 
-Example request from Claude:
+Example request:
 
 > Show me Electronics sales in the North region.
 
-A corresponding tool call may contain:
+A corresponding tool call may use:
 
 ```text
 region = North
@@ -119,24 +98,24 @@ category = Electronics
 limit = 10
 ```
 
-Before the database query runs, the server:
+Before querying the database, the server:
 
 1. Applies rate limiting.
-2. Validates the region input.
-3. Validates the category input.
+2. Sanitizes the region input.
+3. Sanitizes the category input.
 4. Validates the requested row limit.
 5. Passes the validated values to the database layer.
 6. Returns structured matching records.
 
-This means Claude does not construct or execute SQL directly.
+Claude therefore does not construct or execute SQL directly.
 
 ---
 
-### Tool 2: `sales_summary`
+## Tool 2: `sales_summary`
 
-The `sales_summary` tool produces aggregated sales information.
+The `sales_summary` tool returns aggregated sales information.
 
-It can group the dataset by:
+It supports grouping by:
 
 - `region`
 - `category`
@@ -146,28 +125,28 @@ Example request:
 
 > Summarize total units and total revenue by region.
 
-The corresponding tool input is:
+A corresponding tool input is:
 
 ```text
 group_by = region
 ```
 
-The database then calculates:
+The tool returns:
 
 - Total units
 - Total revenue
 
-for each region.
+for each group.
 
-Only the explicitly supported grouping fields are accepted.
+Only explicitly supported grouping fields are accepted.
 
 ---
 
-### Prompt: `analyze_sales`
+## Prompt: `analyze_sales`
 
 The `analyze_sales` MCP prompt provides reusable instructions for analyzing the sales dataset.
 
-The prompt accepts a `focus`, such as:
+The prompt accepts a focus such as:
 
 ```text
 regional sales performance
@@ -176,54 +155,17 @@ regional sales performance
 It instructs Claude to:
 
 - Use the available MCP sales tools when appropriate
-- Identify important patterns
+- Identify important sales patterns
 - Compare stronger and weaker segments
 - Discuss both units sold and revenue
-- Base numerical conclusions only on data returned by the tools
-- Avoid inventing sales values or unsupported facts
-- Mention limitations of the dataset
+- Base numerical conclusions on data returned by the tools
+- Avoid inventing unsupported sales values
+- Mention relevant dataset limitations
 - Produce a concise and clearly structured analysis
 
-The prompt itself does **not** directly access the database.
+The prompt itself does not directly query the SQLite database.
 
-Instead, it guides the AI on how to reason about the problem and when to use the available tools.
-
----
-
-## System Design
-
-The project separates responsibilities across multiple Python files rather than placing all functionality in one file.
-
-```text
-Claude Desktop
-      │
-      │ MCP request
-      ▼
-   server.py
-      │
-      ├────────────── analyze_sales prompt
-      │
-      ▼
-  security.py
-      │
-      ▼
-  database.py
-      │
-      ▼
-data/sales.db
-```
-
-### Why this separation is useful
-
-`server.py` handles the MCP interface.
-
-`security.py` handles validation and rate limiting.
-
-`database.py` handles SQL and database access.
-
-`seed_database.py` handles creation of the sample dataset.
-
-This separation keeps the MCP layer, security logic, and database logic independent and easier to understand, test, and maintain.
+Instead, it guides Claude on how to use the available tools and interpret the returned results.
 
 ---
 
@@ -252,17 +194,17 @@ assignment4-mcp/
 
 ## Main Files
 
-- `server.py` — Defines the MCP server, the two MCP tools, and the analysis prompt.
-- `database.py` — Handles SQLite connections, filtering queries, aggregation, parameterized SQL, and allowed grouping fields.
-- `security.py` — Implements text sanitization, limit validation, and the in-memory rate limiter.
-- `seed_database.py` — Creates the fictional SQLite sales database and inserts 20 sample sales records.
-- `test_security.py` — Runs automated checks for input validation and rate limiting.
+- `server.py` — Defines the MCP server, two MCP tools, and one MCP prompt.
+- `database.py` — Handles SQLite connections, filtering, aggregation, parameterized queries, and allowed grouping fields.
+- `security.py` — Implements input sanitization, numeric validation, and rate limiting.
+- `seed_database.py` — Creates the fictional SQLite database and inserts 20 sample sales records.
+- `test_security.py` — Tests safe input, malicious input, invalid limits, and rate limiting.
 - `claude_desktop_config.json` — Contains the Claude Desktop MCP configuration.
-- `.env.example` — Documents the environment variables required by the application.
-- `.gitignore` — Prevents local environment files, virtual environments, and generated databases from being committed.
-- `requirements.txt` — Lists the Python dependencies required to run the project.
-- `pyproject.toml` — Contains the uv/Python project configuration.
-- `uv.lock` — Locks dependency versions for reproducibility.
+- `.env.example` — Documents the environment variables used by the project.
+- `.gitignore` — Excludes the local environment, virtual environment, generated database, and other local files.
+- `requirements.txt` — Lists the required Python packages.
+- `pyproject.toml` — Contains the Python/uv project configuration.
+- `uv.lock` — Locks dependency versions for reproducible development.
 
 ---
 
@@ -277,9 +219,15 @@ The project uses:
 - SQLite
 - Claude Desktop
 
-For MCP Inspector development and testing, Node.js/npm may also be required.
+Node.js/npm may also be required to use MCP Inspector during development.
 
-The Python dependencies are included in `requirements.txt`:
+The Python dependencies are listed in:
+
+```text
+requirements.txt
+```
+
+with:
 
 ```text
 mcp[cli]==2.2.0
@@ -310,19 +258,25 @@ Because the repository is private, GitHub access must first be granted by the re
 
 ## 2. Create a Virtual Environment
 
-Create a Python virtual environment using uv:
+Create a virtual environment using uv:
 
 ```bash
 uv venv
 ```
 
-Activate it on macOS/Linux:
+Activate it on macOS or Linux:
 
 ```bash
 source .venv/bin/activate
 ```
 
-When activated, the terminal should indicate that the project virtual environment is active.
+The virtual environment is stored in:
+
+```text
+.venv/
+```
+
+and is intentionally excluded from GitHub.
 
 ---
 
@@ -334,7 +288,7 @@ Install the project dependencies:
 uv pip install -r requirements.txt
 ```
 
-The dependencies are also represented in `pyproject.toml` and locked through `uv.lock`.
+The dependencies are also represented in `pyproject.toml` and `uv.lock`.
 
 ---
 
@@ -342,7 +296,7 @@ The dependencies are also represented in `pyproject.toml` and locked through `uv
 
 Create a local `.env` file using `.env.example` as the template.
 
-The configuration used by this project is:
+The project uses:
 
 ```text
 DATABASE_PATH=data/sales.db
@@ -352,11 +306,11 @@ RATE_LIMIT_WINDOW_SECONDS=60
 
 The `.env` file is intentionally excluded from GitHub.
 
-This avoids committing local configuration or sensitive values into source control.
+This allows environment-specific configuration to remain local.
 
 ---
 
-## 5. Create the Local Sales Database
+## 5. Create the Sample Database
 
 Run:
 
@@ -364,40 +318,43 @@ Run:
 uv run python seed_database.py
 ```
 
-The script creates the SQLite database and inserts the sample dataset.
+The script:
 
-The generated database is located at:
+1. Creates the required data directory.
+2. Creates the SQLite database.
+3. Creates the sales table.
+4. Inserts 20 fictional sales records.
+
+The resulting database is:
 
 ```text
 data/sales.db
 ```
 
-The database contains 20 fictional sales records.
-
-Because `data/*.db` is ignored by Git, anyone cloning the repository should run the seed script before using the MCP server.
+Because generated `.db` files are excluded from Git, the seed script should be run after cloning the repository.
 
 ---
 
-# Database Layer
+# Database Access
 
-The database is implemented using SQLite.
-
-The database access code is located in:
+The database access logic is implemented in:
 
 ```text
 database.py
 ```
 
-The file provides two main operations:
+The file provides two main functions:
 
 ```text
 filter_sales()
 summarize_sales()
 ```
 
-### Filtering
+---
 
-The filtering function supports:
+## Filtering Sales
+
+The filtering operation supports:
 
 ```text
 region
@@ -405,7 +362,7 @@ category
 limit
 ```
 
-Filter values are passed to SQLite using parameterized SQL.
+Filter values are passed into SQLite using parameterized queries.
 
 For example:
 
@@ -413,19 +370,17 @@ For example:
 WHERE region = ?
 ```
 
-The actual user value is supplied separately from the SQL statement.
+The actual user-supplied value is passed separately from the SQL statement.
 
-This reduces the possibility of user input being interpreted as SQL code.
+This helps prevent user input from being interpreted as executable SQL.
 
 ---
 
 ## Aggregation Allowlist
 
-The summary operation requires a column name to be inserted into a SQL grouping clause.
+The summary operation accepts a grouping field.
 
-Because SQL identifiers such as column names cannot be handled in the same way as normal query values, the project uses an explicit allowlist.
-
-Only the following values are accepted:
+Only the following values are allowed:
 
 ```text
 region
@@ -433,15 +388,15 @@ category
 product
 ```
 
-Any other grouping value is rejected before the SQL query is constructed.
+The server rejects other fields before constructing the query.
+
+This is important because SQL identifiers such as column names cannot be parameterized in the same way as normal SQL values.
 
 ---
 
 # Security Best Practices
 
-The assignment requires two best practices to be implemented and demonstrated.
-
-This project implements:
+This project implements two required best practices:
 
 1. **Input Sanitization**
 2. **Rate Limiting**
@@ -456,23 +411,33 @@ The input validation logic is implemented in:
 security.py
 ```
 
-Text values pass through `sanitize_filter_text()` before reaching the database.
+User-controlled text passes through the `sanitize_filter_text()` function before being passed to the database layer.
 
 The validation:
 
-- Ensures the value is a string
-- Removes surrounding whitespace
-- Rejects overly long values
-- Allows only letters, numbers, spaces, underscores, and hyphens
+- Ensures the input is a string
+- Removes unnecessary surrounding whitespace
+- Enforces a maximum length
+- Allows only expected characters
 - Rejects unsupported or suspicious punctuation
 
-For example, the following legitimate input is accepted:
+Allowed characters include:
+
+- Letters
+- Numbers
+- Spaces
+- Underscores
+- Hyphens
+
+For example:
 
 ```text
 North
 ```
 
-However, an injection-style value such as:
+is accepted.
+
+An injection-style value such as:
 
 ```text
 North' OR 1=1 --
@@ -480,13 +445,13 @@ North' OR 1=1 --
 
 is rejected because it contains unsupported characters.
 
-A rejected request returns a controlled error rather than querying the database.
+The malicious input is blocked before it can be used in a database query.
 
 ---
 
-## Numeric Input Validation
+## Numeric Validation
 
-The `limit` argument is also validated.
+The `filter_sales` tool also validates the requested row limit.
 
 The allowed range is:
 
@@ -500,7 +465,9 @@ For example:
 limit = 20
 ```
 
-is valid, while:
+is valid.
+
+A request such as:
 
 ```text
 limit = 500
@@ -512,22 +479,22 @@ is rejected.
 
 ## Additional SQL Protection
 
-Input sanitization is not the only protection used.
+The project uses multiple layers of protection for database operations.
 
-The database layer also uses:
+These include:
 
+- Input sanitization
 - Parameterized SQL for filter values
-- An explicit allowlist for grouping columns
+- Numeric validation
+- A strict allowlist for aggregation fields
 
-This provides multiple layers of protection around database access.
+This reduces the ability of user input to alter the intended SQL behavior.
 
 ---
 
 ## Best Practice 2: Rate Limiting
 
-The second best practice is rate limiting.
-
-The server uses a simple in-memory sliding-window rate limiter.
+The project implements an in-memory sliding-window rate limiter.
 
 The default configuration is:
 
@@ -536,40 +503,40 @@ RATE_LIMIT_CALLS=5
 RATE_LIMIT_WINDOW_SECONDS=60
 ```
 
-This means each protected MCP operation is allowed a limited number of calls during a 60-second window.
+This limits repeated calls to protected MCP operations within the configured period.
 
-If the limit is exceeded, the server rejects the request with:
+If the maximum number of requests is exceeded, the server returns:
 
 ```text
 Rate limit exceeded. Please try again later.
 ```
 
-The rate limiter stores recent request times for each operation and removes timestamps after they fall outside the configured window.
+The rate limiter stores recent request timestamps for each operation and removes timestamps once they fall outside the configured time window.
 
-Because the implementation is in memory, its state resets when the server process is restarted.
+The rate-limit history resets when the local MCP server process restarts.
 
 ---
 
-# Security Testing
+# Security and Exploit Testing
 
-Automated tests are provided in:
+Security tests are implemented in:
 
 ```text
 test_security.py
 ```
 
-Run them with:
+Run the tests using:
 
 ```bash
 uv run python test_security.py
 ```
 
-The script tests:
+The tests cover:
 
-- Normal text input
+- Normal valid input
 - SQL-injection-style input
-- Invalid row limits
-- Rate limiting
+- Invalid numeric limits
+- Excessive repeated requests
 
 Expected output includes:
 
@@ -584,13 +551,77 @@ Running security tests...
 All security tests passed.
 ```
 
-The test script uses an isolated rate limiter for testing so that it can demonstrate the blocking behavior without depending on the state of the live MCP server.
+---
+
+## Input Sanitization Exploit Test
+
+Example malicious input:
+
+```text
+North' OR 1=1 --
+```
+
+The expected behavior is for the request to be rejected because unsupported characters are detected.
+
+Another malicious grouping value is:
+
+```text
+region; DROP TABLE sales;--
+```
+
+This input is rejected.
+
+An unsupported grouping value such as:
+
+```text
+order_date
+```
+
+is also rejected because it is not part of the approved grouping allowlist.
+
+A normal query can still be executed afterward to confirm that the database continues to operate.
+
+---
+
+## Rate-Limit Exploit Test
+
+The second exploit demonstration repeatedly calls a protected operation within the configured rate-limit window.
+
+The default configuration allows:
+
+```text
+5 requests per 60 seconds
+```
+
+Once the permitted request count is exceeded, an additional request is blocked.
+
+This demonstrates that excessive repeated tool calls are prevented by the server.
+
+---
+
+# Error Handling
+
+The MCP tools return controlled validation errors rather than exposing raw stack traces or internal implementation details.
+
+For example:
+
+```text
+region contains unsupported characters.
+```
+
+or:
+
+```text
+Rate limit exceeded. Please try again later.
+```
+
+Database connections are also closed using `try/finally` so that resources are released after each database operation.
 
 ---
 
 # MCP Inspector Testing
 
-During development, the server can be tested using MCP Inspector.
+The MCP server can be tested locally using MCP Inspector.
 
 Run:
 
@@ -598,7 +629,7 @@ Run:
 uv run mcp dev server.py
 ```
 
-The Inspector should expose:
+The Inspector should display:
 
 ```text
 Tools
@@ -611,7 +642,7 @@ Prompts
 
 ---
 
-## Example Tool Test: `filter_sales`
+## Example `filter_sales` Test
 
 Use:
 
@@ -621,11 +652,11 @@ category = Electronics
 limit = 10
 ```
 
-The tool should return matching Electronics records for the North region.
+The server should return matching Electronics records for the North region.
 
 ---
 
-## Example Tool Test: `sales_summary`
+## Example `sales_summary` Test
 
 Use:
 
@@ -633,75 +664,27 @@ Use:
 group_by = region
 ```
 
-The tool should return total units and total revenue grouped by region.
+The server should return total units and total revenue grouped by region.
 
 ---
 
-## Example Prompt Test: `analyze_sales`
+## Example `analyze_sales` Prompt Test
 
-Use a focus such as:
+Use:
 
 ```text
 regional sales performance
 ```
 
-The MCP prompt should return structured instructions describing how the available tools should be used to analyze the dataset.
+as the analysis focus.
 
----
-
-# Exploit Demonstration
-
-The assignment also requires demonstrating that each implemented best practice blocks an exploit or misuse case.
-
-## Input-Sanitization Exploit
-
-Example malicious input:
-
-```text
-North' OR 1=1 --
-```
-
-The expected behavior is for the request to be rejected because the region contains unsupported characters.
-
-A malicious grouping input such as:
-
-```text
-region; DROP TABLE sales;--
-```
-
-is also rejected.
-
-An unsupported but non-malicious grouping value such as:
-
-```text
-order_date
-```
-
-is rejected because it is not included in the allowed grouping fields.
-
-After an attempted malicious query, a valid query can still be executed to verify that the database remains intact.
-
----
-
-## Rate-Limit Exploit
-
-Repeatedly calling a protected tool within the configured time window eventually triggers the rate limit.
-
-With the default configuration:
-
-```text
-5 requests / 60 seconds
-```
-
-additional requests during the same active window are rejected.
-
-This demonstrates that the MCP server can prevent excessive repeated tool calls.
+The MCP prompt should return structured instructions explaining how Claude should use the available tools and analyze the results.
 
 ---
 
 # Claude Desktop Integration
 
-The MCP server was successfully connected to Claude Desktop.
+The MCP server has been configured and tested with Claude Desktop.
 
 The connector appears as:
 
@@ -709,43 +692,43 @@ The connector appears as:
 Kezia Sales Analytics
 ```
 
-The project includes:
+The repository includes:
 
 ```text
 claude_desktop_config.json
 ```
 
-which documents the working MCP configuration.
+which contains the MCP configuration used by Claude Desktop.
 
-The current configuration uses:
+The configuration specifies:
 
-```text
-/opt/homebrew/bin/uv
-```
+- The uv executable
+- The MCP package version
+- The local `server.py` path
+- The database path
+- The rate-limit settings
 
-and points to the local `server.py` file.
+The current configuration contains machine-specific absolute paths.
 
-Because file paths differ between computers, the absolute paths in the configuration must be updated when running the project on another machine.
+These paths must be updated when running the server on a different computer.
 
 ---
 
 ## Installing the MCP Server in Claude Desktop
 
-From the project directory, the MCP Python SDK can register the server with Claude Desktop using:
+From the project directory, the MCP SDK can register the local server using:
 
 ```bash
 uv run mcp install server.py --name "Kezia Sales Analytics" -f .env
 ```
 
-This creates the Claude Desktop MCP entry using the local server and environment configuration.
-
-After installation, completely quit Claude Desktop and reopen it so the configuration is reloaded.
+After installation, completely quit and restart Claude Desktop so the configuration is reloaded.
 
 ---
 
 # Claude Desktop Testing
 
-The MCP integration was tested from Claude Desktop using both tools.
+The MCP integration was tested successfully using both tools.
 
 ## Example 1
 
@@ -753,13 +736,13 @@ User request:
 
 > Using my Kezia Sales Analytics tools, show me Electronics sales in the North region.
 
-Claude selected:
+Claude uses:
 
 ```text
 filter_sales
 ```
 
-and returned the matching sales records.
+and returns the matching records.
 
 ---
 
@@ -769,57 +752,57 @@ User request:
 
 > Using my Kezia Sales Analytics tools, summarize total units and total revenue by region.
 
-Claude selected:
+Claude uses:
 
 ```text
 sales_summary
 ```
 
-and returned aggregated regional results.
+and returns aggregated regional results.
 
-Claude then used those tool results to explain the relative sales performance of the regions.
-
-This confirms the end-to-end flow:
-
-```text
-User
-↓
-Claude Desktop
-↓
-MCP Tool
-↓
-Python Server
-↓
-Security Checks
-↓
-SQLite Database
-↓
-Tool Result
-↓
-Claude Response
-```
+These tests verify that Claude Desktop can discover and call the locally implemented MCP tools.
 
 ---
 
 # MCP Prompt in Claude Desktop
 
-The `analyze_sales` MCP prompt is also exposed to Claude Desktop.
+The `analyze_sales` prompt is also exposed through the MCP connector.
 
-It appears under the `Kezia Sales Analytics` connector as:
+It appears as:
 
 ```text
 Analyze sales
 ```
 
-This confirms that the server successfully exposes both MCP tools and the required MCP prompt.
+under the `Kezia Sales Analytics` MCP connection.
+
+This confirms that the server exposes the required:
+
+```text
+2 tools + 1 prompt
+```
+
+configuration.
 
 ---
 
 # Configuration and Secret Management
 
-The project uses `.env` for local configuration.
+The project stores local configuration in:
 
-The following files or directories are intentionally excluded from Git:
+```text
+.env
+```
+
+The `.env` file is excluded from Git.
+
+A reproducible example is provided in:
+
+```text
+.env.example
+```
+
+The `.gitignore` file excludes:
 
 ```text
 .env
@@ -830,27 +813,32 @@ __pycache__/
 .DS_Store
 ```
 
-A safe configuration template is provided as:
+The project uses `pathlib.Path` to construct the local database path.
 
-```text
-.env.example
-```
-
-This allows another user to reproduce the expected environment without committing the local `.env` file.
+No external authenticated API is used by this project, so no API key or external service credential is required.
 
 ---
 
-# Reproducing the Database
+# Reproducing the Dataset
 
-The database can be recreated at any time using:
+The sales dataset is fictional and was created specifically for this assignment.
+
+It contains 20 sample records representing:
+
+- Electronics
+- Furniture
+- Multiple products
+- Four sales regions
+- Units sold
+- Revenue
+
+To recreate the database at any time, run:
 
 ```bash
 uv run python seed_database.py
 ```
 
-This makes the repository reproducible without storing the generated SQLite database in source control.
-
-The fictional data is defined in `seed_database.py`.
+This allows the project to remain reproducible without committing the generated SQLite database.
 
 ---
 
@@ -862,31 +850,31 @@ The basic MCP server structure and the use of MCP tool and prompt registration w
 https://github.com/modelcontextprotocol/python-sdk
 ```
 
-The attribution is also included directly as a comment in `server.py`.
+The source is also cited directly in a comment in `server.py`, as required by the assignment.
 
-The assignment-specific sales database, tool logic, validation logic, rate limiter, security tests, sample dataset, and analysis prompt were implemented specifically for this project.
+The assignment-specific database logic, sales dataset, security controls, rate limiter, MCP tool behavior, analysis prompt, and tests were implemented specifically for this project.
 
 ---
 
 # Quick Start
 
-For an already configured machine, the main commands are:
+After cloning and entering the project directory:
 
 ```bash
-cd engmt5405-assignment4-mcp
+uv venv
 source .venv/bin/activate
 uv pip install -r requirements.txt
 uv run python seed_database.py
 uv run python test_security.py
 ```
 
-To launch MCP Inspector:
+To test the MCP server with MCP Inspector:
 
 ```bash
 uv run mcp dev server.py
 ```
 
-To install the server into Claude Desktop:
+To install the server in Claude Desktop:
 
 ```bash
 uv run mcp install server.py --name "Kezia Sales Analytics" -f .env
@@ -894,45 +882,11 @@ uv run mcp install server.py --name "Kezia Sales Analytics" -f .env
 
 ---
 
-# Limitations
-
-This project is intentionally small and designed for demonstration purposes.
-
-Current limitations include:
-
-- The dataset contains only 20 fictional records.
-- The database is local and not connected to a live production data source.
-- The rate limiter is stored in memory and resets when the MCP server restarts.
-- The MCP tools support only a limited set of filters and aggregation fields.
-- There is no persistent user authentication layer because the server is designed to run locally.
-- The Claude Desktop configuration contains machine-specific absolute paths.
-- The project does not implement advanced analytics or visualization.
-
-These limitations keep the project small enough to demonstrate the MCP architecture clearly while still showing useful security and software-engineering practices.
-
----
-
-# Possible Future Improvements
-
-Possible extensions include:
-
-- Connecting the MCP server to a larger or live dataset
-- Adding date-range filtering
-- Adding more sales-analysis tools
-- Adding visualization capabilities
-- Using persistent/shared rate-limit storage
-- Adding authentication for a remotely hosted MCP server
-- Adding more comprehensive automated tests
-- Adding structured logging and monitoring
-- Supporting more advanced statistical analysis
-
----
-
 # Summary
 
-This project demonstrates how the Model Context Protocol can provide a controlled interface between an AI assistant and an external data source.
+This project demonstrates how the Model Context Protocol can provide a controlled interface between an AI assistant and a local data source.
 
-Instead of giving Claude unrestricted database access, the system exposes a small set of explicit capabilities:
+Claude Desktop interacts with the sales dataset only through the capabilities exposed by the Python MCP server:
 
 ```text
 filter_sales
@@ -940,19 +894,19 @@ sales_summary
 analyze_sales
 ```
 
-The Python MCP server controls how these capabilities operate.
+The server validates user input, applies rate limiting, performs controlled database operations, and returns structured results.
 
-Before database access occurs, the server validates inputs and applies rate limiting. Database queries are further protected through parameterized SQL and allowlisted grouping fields.
+The project therefore includes:
 
-The completed project therefore demonstrates:
-
-- A working local Python MCP server
-- Two functional MCP tools
-- One reusable MCP prompt
-- SQLite integration
+- A working Python MCP server
+- Two distinct MCP tools
+- One MCP prompt
+- SQLite database integration
 - Claude Desktop integration
 - Input sanitization
 - Rate limiting
-- Exploit testing
-- Reproducible project setup
-- Clear separation between the AI client, MCP interface, security layer, and database layer
+- Exploit demonstrations
+- Automated security tests
+- Environment-based configuration
+- Reproducible setup instructions
+- Source-code citation
